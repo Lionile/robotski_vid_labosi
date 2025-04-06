@@ -2,7 +2,7 @@ import numpy as np
 import cv2 as cv
 import matplotlib.pyplot as plt
 
-img = cv.imread('./images/image5.jpg')
+img = cv.imread('./images/image1.jpg')
 gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
 # blurred = cv.GaussianBlur(gray, (5,5), 10)
 # for _ in range(100):
@@ -11,7 +11,7 @@ gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
 
 fig, ax = plt.subplots(2, 4, figsize=(12, 8))
 for i in range(8):
-    range = i
+    range = i + 8
     canny = cv.Canny(gray, range*20, range*20+20)
 
     ax[i//4, i%4].imshow(canny, cmap='gray')

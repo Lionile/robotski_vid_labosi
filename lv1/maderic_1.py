@@ -47,7 +47,7 @@ def select_point(event, x, y, flags, param):
             if len(points) == max_points:
                 print("All 4 points selected")
 
-original_image = cv.imread('./images/image.jpg')
+original_image = cv.imread('./images/image1.jpg')
 image = original_image.copy()
 with open('camera_params.json', 'r') as f:
         data = json.load(f)
@@ -86,7 +86,7 @@ gray = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
 
 
 
-edges = cv.Canny(gray, 140, 160) # get edges
+edges = cv.Canny(gray, 160, 180) # get edges
 
 # remove outer edges from paper
 inner_points = shrink_polygon(points, 0.05)
@@ -98,12 +98,27 @@ edges = cv.bitwise_and(edges, edges, mask=inner_mask)
 
 
 lines = cv.HoughLines(edges, 1, np.pi/90, threshold=50) # get lines
+print(f'object lines detected: {len(lines)}')
 paper_lines = cv.HoughLines(paper_edges, 1, np.pi/90, threshold=50) # get paper lines
 
 
+# filter lines for grouping
+# if rho is negative, turn it positive, and flip the direction of the line (angle) by 180 degrees
+for i in range(len(lines)):
+    rho, theta = lines[i][0]
+    if rho < 0:
+        rho = -rho
+        theta = np.pi - theta
+    lines[i][0] = [rho, theta]
+
+
+hough_image = draw_hough_lines(image, lines)
+plt.imshow(hough_image)
+plt.show()
+
 # draw best match hough lines on the image
 # find 4 groups with dbscan
-cluster_centers = dbscan_edges(lines)
+cluster_centers = dbscan_edges(lines, plot=True)
 cluster_centers_paper = dbscan_edges(paper_lines)
 
 
@@ -173,7 +188,9 @@ b = P @ tvec
 cluster_centers = np.array(cluster_centers)
 sorted_indices = np.argsort(cluster_centers[:,0])
 cluster_centers = np.array(cluster_centers)[sorted_indices].squeeze()
-dominant_line = cluster_centers[-1]
+# TODO: fix dominant line selection
+# choose dominant line with respect to the paper origin, not the image origin
+dominant_line = cluster_centers[2]
 
 # display dominant line on the image
 hough_image = image.copy()
@@ -192,8 +209,14 @@ rho_prime = lambda_p / (np.sqrt(lambda_x**2 + lambda_y**2))
 
 print(f'rho: {rho_prime}, theta: {np.degrees(theta_prime)}')
 
-real_rho = 20 # mm
-real_angle = -58 # degrees
+# image.jpg
+# real_rho = 20 # mm
+# real_angle = -58 # degrees
+
+# image1.jpg
+real_rho = 30 # mm
+real_angle = 90 # degrees
+
 
 rho_diff = abs(real_rho - rho_prime)
 angle_diff = abs(real_angle - np.degrees(theta_prime))

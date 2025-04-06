@@ -32,6 +32,7 @@ while True:
 
     if c == ord('c'):
         cv2.imwrite(f'./images/image{image_counter}.jpg', frame)
+        image_counter += 1
 
     if c == ord('p'):
         if successes >= max_images:
