@@ -64,8 +64,8 @@ def convert_2d_points_to_3d_points(points_2d_L, points_2d_R, E, P):
         X[1, 1] = -x4[0, 0]
 
         #init Y table
-        y1 = L_pi.T.dot(A_inv_b)
-        y2 = AR_pi.T.dot(A_inv_b)
+        y1 = L_pi.dot(A_inv_b)
+        y2 = AR_pi.dot(A_inv_b)
 
         Y[0, 0] = -y1[0, 0]
         Y[1, 0] = y2[0, 0]
@@ -78,6 +78,6 @@ def convert_2d_points_to_3d_points(points_2d_L, points_2d_R, E, P):
         L_pi *= s
         AR_pi *= t
 
-        points_3d[i, :] = (L_pi + AR_pi - A_inv_b).squeeze() / 2
+        points_3d[i, :] = (L_pi.flatten() + AR_pi.flatten() - A_inv_b.flatten()).squeeze() / 2
 
     return points_3d

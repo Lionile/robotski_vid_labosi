@@ -3,13 +3,14 @@ import json
 import matplotlib.pyplot as plt
 import matplotlib.tri as mtri
 
-def main():
+def plot_3d_points(points_3d = None, plot_show = True):
     fig = plt.figure(figsize=plt.figaspect(0.5))
 
-    points_3d_path = 'LV5/points_3d.json'
+    if points_3d is None:
+        points_3d_path = 'points_3d.json'
 
-    with open(points_3d_path, 'r') as f:
-        points_3d = np.array(json.load(f))
+        with open(points_3d_path, 'r') as f:
+            points_3d = np.array(json.load(f))
 
 
     x = points_3d[:,0].flatten()
@@ -24,7 +25,8 @@ def main():
     ax = fig.add_subplot(1, 2, 2, projection='3d')
     ax.scatter(-x, -y, -z)
 
-    plt.show()
+    if plot_show:
+        plt.show()
 
 if __name__ == '__main__':
-    main()
+    plot_3d_points()
