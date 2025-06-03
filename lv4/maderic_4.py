@@ -9,19 +9,27 @@ from multiprocessing import Pool
 from read_kinect_pic import read_kinect_pic
 
 
-def point_cloud_ransac(depth_image, eps, iterations=100):
+def point_cloud_ransac(depth_image, eps, iterations=100, depth_mask = None):
     T = [] # list of inlier points
     R = [0, 0, 0] # plane paramaters (au + bv + c = d)
     height, width = depth_image.shape
 
     for _ in range(iterations):
         # pick three distinct points from the point cloud
-        indices = random.sample(range(width * height), 3)
-        
-        p1 = (indices[0]//width, indices[0]%height)
-        p2 = (indices[1]//width, indices[1]%height)
-        p3 = (indices[2]//width, indices[2]%height)
-        
+        p1 = p2 = p3 = 0
+        while True: # until only active points are selected
+            indices = random.sample(range(width * height), 3)
+            
+            p1 = (indices[0]//width, indices[0]%height)
+            p2 = (indices[1]//width, indices[1]%height)
+            p3 = (indices[2]//width, indices[2]%height)
+
+            if depth_mask is not None:
+                if depth_mask[*p1] and depth_mask[*p2] and depth_mask[*p3]:
+                    break
+            else:
+                break
+            
         d1 = depth_image[*p1]
         d2 = depth_image[*p2]
         d3 = depth_image[*p3]
@@ -40,6 +48,8 @@ def point_cloud_ransac(depth_image, eps, iterations=100):
         inlier_points = np.array([])
         for u, row in enumerate(depth_image):
             for v, pixel in enumerate(row):
+                if depth_mask[u, v] == 0:
+                    continue
                 # distance of point to the plane
                 dist = np.abs(pixel - (R_[0]*u + R_[1]*v + R_[2]))
                 if dist < eps:
@@ -57,8 +67,8 @@ def ransac_worker(args):
     return T, R
 
 if __name__ == '__main__':
-    # image_numbers = [1, 2, 3, 133, 242, 270, 300, 392, 411]
-    image_numbers = [133]
+    image_numbers = [1, 2, 3, 133, 242, 270, 300, 392, 411]
+    # image_numbers = [133]
     num_planes = 1
 
     images_folder_path = 'result_images'
@@ -77,29 +87,43 @@ if __name__ == '__main__':
 
         # multi threaded
         for eps in [3]:
-            start_time = time.time()
             # algorithm params
             iterations = 40 # per process
+            plane_count = 4
             # multithreading params
             num_workers = 8
-            with Pool(num_workers) as pool:
-                results = pool.map(ransac_worker, [(depth_img, eps, iterations)] * num_workers)
 
-            T, R = max(results, key=lambda x: len(x[0]))
-            print(f'Inlier count: {len(T)}\nBest R: {R}')
-            end_time = time.time()
-            print(f'Execution time: {(end_time - start_time):.2f}s')
+            planes = []
+            depth_mask = np.ones_like(depth_img) # 1 - active point, 0 - inactive point
+            for plane_idx in range(plane_count):
+                start_time = time.time()
+                with Pool(num_workers) as pool:
+                    results = pool.map(ransac_worker, [(depth_img, eps, iterations, depth_mask)] * num_workers)
+
+                T, R = max(results, key=lambda x: len(x[0]))
+
+                planes.append((T, R))
+
+                for px in T:
+                    depth_mask[*px] = 0
+
+                print(f'--------Plane [{plane_idx +1}]--------')
+                print(f'Inlier count: {len(T)}\nBest R: {R}')
+                end_time = time.time()
+                print(f'Execution time: {(end_time - start_time):.2f}s')
             
 
             plane_colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255)]
 
             img_dominant = img.copy()
-            for px in T:
-                img_dominant[*px] = (255, 0, 0)
+            for i, (T, R) in enumerate(planes):
+                for px in T:
+                    img_dominant[*px] = plane_colors[i]
 
             depth_img_dominant = cv.cvtColor(depth_img, cv.COLOR_GRAY2RGB)
-            for px in T:
-                depth_img_dominant[*px] = (255, 0, 0)
+            for i, (T, R) in enumerate(planes):
+                for px in T:
+                    depth_img_dominant[*px] = plane_colors[i]
 
             fig, ax = plt.subplots(2, 2, figsize=(12, 6))
             ax[0,0].imshow(img)
@@ -139,10 +163,10 @@ if __name__ == '__main__':
             # ax[,].set_title('depth image with fine tuned plane parameters')
 
             # save resulting image
-            # cv.imwrite(rf'{images_folder_path}/{img_filename}_eps{eps}.png', cv.cvtColor(img_dominant, cv.COLOR_BGR2RGB)) # original with dominant plane
-            # cv.imwrite(rf'{images_folder_path}/{img_filename}_eps{eps}_depth.png', cv.cvtColor(depth_img_dominant, cv.COLOR_BGR2RGB)) # depth with dominant plane
-            # report_img = np.hstack([img, img_dominant, depth_img_dominant])
-            # cv.imwrite(rf'{images_folder_path}/{img_filename}_eps{eps}_report.png', cv.cvtColor(report_img, cv.COLOR_BGR2RGB)) # depth with dominant plane
+            cv.imwrite(rf'{images_folder_path}/{img_filename}_eps{eps}_4dominant.png', cv.cvtColor(img_dominant, cv.COLOR_BGR2RGB)) # original with dominant plane
+            cv.imwrite(rf'{images_folder_path}/{img_filename}_eps{eps}_depth_4dominant.png', cv.cvtColor(depth_img_dominant, cv.COLOR_BGR2RGB)) # depth with dominant plane
+            report_img = np.hstack([img, img_dominant, depth_img_dominant])
+            cv.imwrite(rf'{images_folder_path}/{img_filename}_eps{eps}_report_4dominant.png', cv.cvtColor(report_img, cv.COLOR_BGR2RGB)) # depth with dominant plane
         
     plt.tight_layout()
     plt.show()
